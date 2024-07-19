@@ -11,8 +11,17 @@ int main(int argc, char *argv[]) {
 	int sockfd, newsockfd;
 	struct sockaddr_in addr;
 	socklen_t addrlen = sizeof(addr);
-	char buffer[256];
+	char buffer[BUFFER_SIZE];
+	bzero(&buffer, BUFFER_SIZE);
 	
+	#ifdef _WIN32
+		WSADATA wsaData;
+		if(WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
+			perror("WSAStartup failed");
+			exit(1);
+		}
+	#endif
+
 	//Tao socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0); 
 	if (sockfd < 0) {
@@ -33,7 +42,12 @@ int main(int argc, char *argv[]) {
 	// This bind() call will bind  the socket to the current IP address on port, portno
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) < 0){
 		perror("Loi ket noi socket voi address");
-		close(sockfd);
+		#ifdef _WIN32
+			closesocket(sockfd);
+			WSACleanup();
+		#else
+			close(sockfd);
+		#endif
 		exit(1);
 	}
 
@@ -42,7 +56,13 @@ int main(int argc, char *argv[]) {
 	// Here, we set the maximum size for the backlog queue to 5.
 	if ((listen(sockfd, 5)) != 0) {
 		printf("Loi socket server listening\n");
-		exit(0);
+		#ifdef _WIN32
+			closesocket(sockfd);
+			WSACleanup();
+		#else
+			close(sockfd);
+		#endif
+		exit(1);
 	}
 	else
 		printf("Server listening\n");
@@ -59,16 +79,26 @@ int main(int argc, char *argv[]) {
 		newsockfd = accept(sockfd, (struct sockaddr*)&addr, &addrlen);//Khong anh huong den addr da bind voi sockfd truoc do
 		if (newsockfd < 0){
 			perror("Loi nhan ket noi tu client");
-			close(sockfd);
+			#ifdef _WIN32
+				closesocket(sockfd);
+				WSACleanup();
+			#else
+				close(sockfd);
+			#endif
 			exit(1);
 		}
 		
 		//printf("Server: nhan duoc ket noi tu %s o port %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 		
-		int len_input = read(newsockfd, buffer, BUFFER_SIZE);
+		int len_input = recv(newsockfd, buffer, BUFFER_SIZE, 0);
 		if (len_input < 0){
 			perror("Loi nhan du lieu tu socket client");
-			close(newsockfd);
+			#ifdef _WIN32
+				closesocket(newsockfd);
+				WSACleanup();
+			#else
+				close(newsockfd);
+			#endif
 			continue;
 		}
 
@@ -78,22 +108,33 @@ int main(int argc, char *argv[]) {
 			FILE *outfile = fopen(filename, "wb");
 			if (outfile == NULL){
 				perror("Loi mo file");
-				close(newsockfd);
+				#ifdef _WIN32
+					closesocket(newsockfd);
+				#else
+					close(newsockfd);
+				#endif
 				continue;
 			}
 			
 			while((len_input = read(newsockfd, buffer, BUFFER_SIZE)) > 0) {
-				fwrite(buffer, 1, len, outfile);
+				fwrite(buffer, 1, len_input, outfile);
 			}
-
 			fclose(outfile);
 			printf("File received and saved to %s\n", filename);
 		} else {
 			printf("Client message: %s\n", buffer);
 		}
-
-		close(newsockfd);
+		#ifdef _WIN32
+			closesocket(newsockfd);
+		#else
+			close(newsockfd);
+		#endif
 	}
-
+	#ifdef _WIN32
+		closesocket(sockfd);
+		WSACleanup();
+	#else
+		close(sockfd);
+	#endif
 	return 0; 
 }
