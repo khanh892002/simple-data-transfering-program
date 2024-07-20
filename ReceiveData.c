@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
 	const char *storing_dir = argv[2];
 	int sockfd, newsockfd;
 	struct sockaddr_in addr;
-
+	// doi tuong sockaddr_in dung de chua thong tin dia chi, bao gom loai dia chi, dia chi (IP), port
 	#ifdef _WIN32
 		WSADATA wsaData;
 		if(WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
@@ -28,14 +28,13 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	// setup the host_addr structure for use in bind call
+	//cau hinh dia chi truoc khi gan vao socket cua server
 	addr.sin_family = AF_INET; // su dung dang dia chi IPv4
 	addr.sin_addr.s_addr = INADDR_ANY; // INADDR_ANY = inet_addr("<IP_addr cua may chu>")
 	addr.sin_port = htons(PORT); // chuyen short integer sang dang network byte order
 
 	// bind(int fd, struct sockaddr *local_addr, socklen_t addr_length)
-	// bind() passes file descriptor, the address structure, and the length of the address structure
-	// This bind() call will bind  the socket to the current IP address on port, portno
+	// ham se gan dia chi duoc chi dinh vao socket
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) < 0){
 		perror("Loi ket noi socket voi address");
 		system("pause");
@@ -48,9 +47,8 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	// This listen() call tells the socket to listen to the incoming connections.
-	// The listen() function places all incoming connection into a backlog queue until accept() call accepts the connection.
-	// Here, we set the maximum size for the backlog queue to 5.
+	// ham listen thiet lap cho socket listen cac ket noi den, dua vao mot hang doi cho toi khi duoc nhan boi ham accept()
+	// ta thiet lap hang doi chi chua toi da 5 ket noi
 	if ((listen(sockfd, 5)) != 0) {
 		printf("Loi socket server listening\n");
 		system("pause");
@@ -66,18 +64,13 @@ int main(int argc, char *argv[]) {
 		printf("Server listening\n");
 	
 	while(1){
-		//system("cls");
-	// This accept() function will write the connecting client's address info 
-	// into the the address structure and the size of that structure is clilen.
-	// The accept() returns a new socket file descriptor for the accepted connection.
-	// So, the original socket file descriptor can continue to be used 
-	// for accepting new connections while the new socker file descriptor is used for
-	// communicating with the connected client.
+		//ham accept se luu lai thong tin dia chi cua client
+		//tra ve mot socket dung de xu ly ket noi vua nhan, de co the tiep tuc su dung socket ban dau (sockfd)
+		//va cung de co the nhan them cac ket noi khac trong khi socket moi (newsockfd) co the duoc dung de giao tiep voi client
 		struct sockaddr_in cliAddr;
 		socklen_t addrlen = sizeof(cliAddr);
 		if ((newsockfd = accept(sockfd, (struct sockaddr*)&cliAddr, &addrlen)) < 0) {
 			perror("Loi nhan ket noi tu client");
-			system("pause");
 			continue;
 		}
 		

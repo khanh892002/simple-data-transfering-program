@@ -37,7 +37,7 @@ int connect2Serv(const char* serv_ip) {
 
 	//Ket noi den server
 	if (connect(sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0) {
-		perror("Ket noi den server  that bai");
+		perror("Ket noi den server that bai");
 		#ifdef _WIN32
 			closesocket(sock);
 			WSACleanup();
@@ -79,7 +79,7 @@ void sendFile(int sock, const char* filePath, size_t buffer_size) {
 
 	char check[5] = {0};
 	size_t bytes_read = recv(sock, check, 4, 0);
-	if (strcmp(check, "SCSS") == 0) {//server da nhan duoc fileName
+	if (strcmp(check, "SCSS") == 0) {//server co the luu duoc file
 		//gui noi dung file
 		while((bytes_read = fread(buffer, 1, buffer_size, fin)) > 0) {
 			send(sock, buffer, bytes_read, 0);
