@@ -77,11 +77,16 @@ void sendFile(int sock, const char* filePath, size_t buffer_size) {
 	else fileName++; //Bo qua ky tu \ hoac /
 	send(sock, fileName, strlen(fileName) + 1, 0); // gui ten file
 
-	//gui noi dung file
-	size_t bytes_read;
-	while((bytes_read = fread(buffer, 1, buffer_size, fin)) > 0) {
-		send(sock, buffer, bytes_read, 0);
+	char check[5] = {0};
+	size_t bytes_read = recv(sock, check, 4, 0);
+	if (strcmp(check, "SCSS") == 0) {//server da nhan duoc fileName
+		//gui noi dung file
+		while((bytes_read = fread(buffer, 1, buffer_size, fin)) > 0) {
+			send(sock, buffer, bytes_read, 0);
+		}
+		printf("Gui file %s thanh cong\n", fileName);
 	}
+	else fprintf(stderr, "Server khong tao duoc file\n");
 
 	fclose(fin);
 	free(buffer);

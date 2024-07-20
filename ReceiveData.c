@@ -83,53 +83,47 @@ int main(int argc, char *argv[]) {
 		
 		printf("Server: nhan duoc ket noi tu %s o port %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
 		
-		//De nhan chuoi TEXT/FILE tu client neu client muon gui file
-		char check[5] = {0};
+		char check[5] = {0};//De nhan chuoi TEXT/FILE tu client neu client muon gui file
 		int len_input = recv(newsockfd, check, 4, 0);
 		//ham recv lay thong tin tu newsockfd (client),
 		//vao buffer <size - 1> byte ky tu
-		if (len_input < 0) {
-			perror("Loi nhan du lieu tu socket client");
-			#ifdef _WIN32
-				closesocket(newsockfd);
-			#else
-				close(newsockfd);
-			#endif
-			continue;
-		}
-
-		check[len_input] = '\0';
-		if (strcmp(check, "FILE") == 0) {
-			char buffer[BUFFER_SIZE] = {0};
-			//nhan ten file
-			len_input = recv(newsockfd, buffer, BUFFER_SIZE - 1,0);
-			if (len_input <= 0) {
-				perror("Khong nhan duoc ten file");
-			}
-			else {
-				buffer[len_input] = '\0';
-				char filePath[256];
-				snprintf(filePath, sizeof(filePath), "%s%s", storing_dir, buffer);
-				
-				FILE *outfile = fopen(filePath, "wb");
-				if (outfile == NULL)
-					perror("Loi mo file");
+		if (len_input >= 0) {
+			check[len_input] = '\0';
+			if (strcmp(check, "FILE") == 0) {
+				char buffer[BUFFER_SIZE] = {0};
+				//nhan ten file
+				len_input = recv(newsockfd, buffer, BUFFER_SIZE - 1,0);
+				if (len_input <= 0)
+					perror("Khong nhan duoc ten file");
 				else {
-					while((len_input = recv(newsockfd, buffer, BUFFER_SIZE, 0)) > 0) {
-						fwrite(buffer, 1, len_input, outfile);
+					buffer[len_input] = '\0';
+					
+					char filePath[256];
+					snprintf(filePath, sizeof(filePath), "%s/%s", storing_dir, buffer);
+
+					FILE *outfile = fopen(filePath, "wb");
+					if (outfile == NULL) {
+						perror("Loi mo file");
+						send(newsockfd, "FAIL", 4, 0);
 					}
-					fclose(outfile);
-					printf("File received and saved to %s\n", filePath);
+					else {
+						send(newsockfd, "SCSS", 4, 0);
+						while((len_input = recv(newsockfd, buffer, BUFFER_SIZE, 0)) > 0) {
+							fwrite(buffer, 1, len_input, outfile);
+						}
+						fclose(outfile);
+						printf("Da nhan va luu file vao %s\n", filePath);
+					}
+				}
+			} else {
+				char message[BUFFER_SIZE] = {0};
+				len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0);
+				if (len_input > 0) {
+					message[len_input] = '\0';
+					printf("Tin nhan tu client: %s\n", message);
 				}
 			}
-		} else {
-			char message[BUFFER_SIZE] = {0};
-			len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0);
-			if (len_input > 0) {
-				message[len_input] = '\0';
-				printf("Tin nhan tu client: %s\n", message);
-			}
-		}
+		} else perror("Loi nhan du lieu tu socket client");
 
 		#ifdef _WIN32
 			closesocket(newsockfd);
