@@ -110,11 +110,15 @@ int main(int argc, char *argv[]) {
 				}
 			} else {
 				char message[BUFFER_SIZE] = {0};
-				len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0);
-				if (len_input > 0) {
+
+				printf("Tin nhan tu %s, port %d: ", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+				fflush(stdout);
+				while((len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0)) > 0) {
 					message[len_input] = '\0';
-					printf("Tin nhan tu client: %s\n", message);
+					printf("%s", message);
+					fflush(stdout);
 				}
+				printf("\n");
 			}
 		} else perror("Loi nhan du lieu tu socket client");
 
