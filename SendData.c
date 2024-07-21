@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
 
 	char command[BUFFER_SIZE];
 	while(1) {
-		printf("Nhap lenh theo cu phap (SendText <message> | SendFile <file_path> <buffer_size>): \n");
+		printf("Nhap lenh theo cu phap (SendText <message> | SendFile <file_path> <buffer_size> | exit): \n");
 		fgets(command, BUFFER_SIZE, stdin);
 		size_t len = strlen(command);
 		if (len > 0 && command[len - 1] == '\n')
@@ -138,7 +138,10 @@ int main(int argc, char *argv[]) {
 			} else
 				fprintf(stderr, "Can nhap thong tin duong dan va buffer size\n");
 		}
-		else if (strcmp(cmd, "exit") == 0) break;
+		else if (strcmp(cmd, "exit") == 0) {
+			send(sock, "EXIT", 4, 0);
+			break;
+		}
 		else fprintf(stderr, "Lenh khong hop le");
 	}
 

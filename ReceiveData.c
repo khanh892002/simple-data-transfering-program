@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 		size_t len_input = recv(newsockfd, check, 4, 0);
 		//ham recv lay thong tin tu newsockfd (client),
 		//vao buffer <size - 1> byte ky tu
-		if (len_input >= 0) {
+		if (len_input > 0) {
 			check[len_input] = '\0';
 			if (strcmp(check, "FILE") == 0) {
 				char buffer[BUFFER_SIZE] = {0};
@@ -135,15 +135,22 @@ int main(int argc, char *argv[]) {
 						fclose(outfile);
 					}
 				}
-			} else {
+			} else if (strcmp(check, "TEXT") == 0) {
 				char message[BUFFER_SIZE] = {0};
 				len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0);
 				if (len_input > 0) {
 					message[len_input] = '\0';
 					printf("Tin nhan tu %s, port %d: %s\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port), message);
 				}
+			} else if (strcmp(check, "EXIT") == 0) {
+				printf("Nhan duoc thong bao ngat ket noi tu %s, %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+				break;
 			}
-		} else perror("Loi nhan du lieu tu socket client");
+			else printf("Lenh khong hop le tu %s, %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+		} else {
+			perror("Ket noi tu client bi loi hoac da dong ket noi\n");
+			break;
+		}
 	}
 
 	#ifdef _WIN32
@@ -155,5 +162,6 @@ int main(int argc, char *argv[]) {
 		close(sockfd);
 	#endif
 	
+	printf("Dong server ReceiveData\n");
 	return 0; 
 }
