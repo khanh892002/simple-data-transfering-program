@@ -80,6 +80,12 @@ void sendFile(int sock, const char* filePath, size_t buffer_size) {
 	char check[5] = {0};
 	size_t bytes_read = recv(sock, check, 4, 0);
 	if (strcmp(check, "SCSS") == 0) {//server co the luu duoc file
+		//gui kich thuoc file
+		fseek(fin, 0, SEEK_END);
+		bytes_read = ftell(fin);
+		fseek(fin, 0, SEEK_SET);
+		send(sock, (char*)&bytes_read, sizeof(bytes_read), 0);
+		
 		//gui noi dung file
 		while((bytes_read = fread(buffer, 1, buffer_size, fin)) > 0) {
 			send(sock, buffer, bytes_read, 0);
@@ -106,7 +112,6 @@ int main(int argc, char *argv[]) {
 	char command[BUFFER_SIZE];
 	while(1) {
 		printf("Nhap lenh theo cu phap (SendText <message> | SendFile <file_path> <buffer_size>): \n");
-		
 		fgets(command, BUFFER_SIZE, stdin);
 		size_t len = strlen(command);
 		if (len > 0 && command[len - 1] == '\n')

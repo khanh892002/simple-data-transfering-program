@@ -1,4 +1,18 @@
 #include "supportLibFunc.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+
+int directoryExists(const char* path) {
+	#ifdef _WIN32
+		struct _stat info;
+		if (_stat(path, &info) != 0) return 0;
+		return (info.st_mode & S_IFDIR) != 0;
+	#else
+		struct stat info;
+		if (stat(path, &info) != 0) return 0;
+		return (info.st_mode & S_IFDIR) != 0;
+	#endif
+}
 
 int main(int argc, char *argv[]) {
 	if ((argc < 3) || (strcmp(argv[1], "-out") != 0)) {// sai cu phap
@@ -8,6 +22,12 @@ int main(int argc, char *argv[]) {
 	}
     
 	const char *storing_dir = argv[2];
+
+	if(!directoryExists(storing_dir)) {
+		fprintf(stderr, "Thu muc %s khong ton tai\n", storing_dir);
+		exit(1);
+	}
+
 	int sockfd, newsockfd;
 	struct sockaddr_in addr;
 	// doi tuong sockaddr_in dung de chua thong tin dia chi, bao gom loai dia chi, dia chi (IP), port
@@ -15,7 +35,6 @@ int main(int argc, char *argv[]) {
 		WSADATA wsaData;
 		if(WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
 			perror("WSAStartup failed");
-			system("pause");
 			exit(1);
 		}
 	#endif
@@ -24,7 +43,6 @@ int main(int argc, char *argv[]) {
     sockfd = socket(AF_INET, SOCK_STREAM, 0); 
 	if (sockfd < 0) {
 		perror("Loi tao socket");
-		system("pause");
 		exit(1);
 	}
 
@@ -36,8 +54,7 @@ int main(int argc, char *argv[]) {
 	// bind(int fd, struct sockaddr *local_addr, socklen_t addr_length)
 	// ham se gan dia chi duoc chi dinh vao socket
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) < 0){
-		perror("Loi ket noi socket voi address");
-		system("pause");
+		perror("Loi gan dia chi vao socket");
 		#ifdef _WIN32
 			closesocket(sockfd);
 			WSACleanup();
@@ -63,21 +80,20 @@ int main(int argc, char *argv[]) {
 	else
 		printf("Server listening\n");
 	
+	struct sockaddr_in cliAddr;
+	socklen_t addrlen = sizeof(cliAddr);	
+	//ham accept se luu lai thong tin dia chi cua client
+	//tra ve mot socket dung de xu ly ket noi vua nhan, de co the tiep tuc su dung socket ban dau (sockfd)
+	//va cung de co the nhan them cac ket noi khac trong khi socket moi (newsockfd) co the duoc dung de giao tiep voi client
+	if((newsockfd = accept(sockfd, (struct sockaddr*) &cliAddr, &addrlen)) < 0) {
+		perror("Ket noi that bai");
+		exit(1);
+	}
+	printf("Server: nhan duoc ket noi tu %s o port %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+
 	while(1){
-		//ham accept se luu lai thong tin dia chi cua client
-		//tra ve mot socket dung de xu ly ket noi vua nhan, de co the tiep tuc su dung socket ban dau (sockfd)
-		//va cung de co the nhan them cac ket noi khac trong khi socket moi (newsockfd) co the duoc dung de giao tiep voi client
-		struct sockaddr_in cliAddr;
-		socklen_t addrlen = sizeof(cliAddr);
-		if ((newsockfd = accept(sockfd, (struct sockaddr*)&cliAddr, &addrlen)) < 0) {
-			perror("Loi nhan ket noi tu client");
-			continue;
-		}
-		
-		printf("Server: nhan duoc ket noi tu %s o port %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
-		
 		char check[5] = {0};//De nhan chuoi TEXT/FILE tu client neu client muon gui file
-		int len_input = recv(newsockfd, check, 4, 0);
+		size_t len_input = recv(newsockfd, check, 4, 0);
 		//ham recv lay thong tin tu newsockfd (client),
 		//vao buffer <size - 1> byte ky tu
 		if (len_input >= 0) {
@@ -101,38 +117,41 @@ int main(int argc, char *argv[]) {
 					}
 					else {
 						send(newsockfd, "SCSS", 4, 0);
-						while((len_input = recv(newsockfd, buffer, BUFFER_SIZE, 0)) > 0) {
-							fwrite(buffer, 1, len_input, outfile);
+
+						size_t fileSize;
+						len_input = recv(newsockfd, (char*)&fileSize, sizeof(fileSize), 0);
+						if (len_input <= 0)
+							perror("Nhan kich thuoc file that bai");
+						else {
+							size_t total_bytes_received = 0;
+							while(total_bytes_received < fileSize && (len_input = recv(newsockfd, buffer, BUFFER_SIZE, 0)) > 0) {
+								fwrite(buffer, 1, len_input, outfile);
+								total_bytes_received += len_input;
+							}
+							if(total_bytes_received == fileSize)
+								printf("Da nhan file tu %s port %d va luu vao %s\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port), filePath);
+							else printf("Chua nhan het file %s tu %s, %d", buffer, inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
 						}
 						fclose(outfile);
-						printf("Da nhan va luu file vao %s\n", filePath);
 					}
 				}
 			} else {
 				char message[BUFFER_SIZE] = {0};
-
-				printf("Tin nhan tu %s, port %d: ", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
-				fflush(stdout);
-				while((len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0)) > 0) {
+				len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0);
+				if (len_input > 0) {
 					message[len_input] = '\0';
-					printf("%s", message);
-					fflush(stdout);
+					printf("Tin nhan tu %s, port %d: %s\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port), message);
 				}
-				printf("\n");
 			}
 		} else perror("Loi nhan du lieu tu socket client");
-
-		#ifdef _WIN32
-			closesocket(newsockfd);
-		#else
-			close(newsockfd);
-		#endif
 	}
 
 	#ifdef _WIN32
+		closesocket(newsockfd);
 		closesocket(sockfd);
 		WSACleanup();
 	#else
+		close(newsockfd);
 		close(sockfd);
 	#endif
 	
