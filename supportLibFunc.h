@@ -16,3 +16,4 @@
 
 #define PORT 8000
 #define BUFFER_SIZE 512
+#define MAX_PATH_LENGTH 256

@@ -52,6 +52,11 @@ int connect2Serv(const char* serv_ip) {
 }
 
 void sendFile(int sock, const char* filePath, size_t buffer_size) {
+	if (strlen(filePath) >= MAX_PATH_LENGTH) {
+		fprintf(stderr, "Duong dan den file qua dai\n");
+		return;
+	}
+
 	char *buffer = malloc(buffer_size);
 	if (buffer == NULL) {
 		perror("Loi cap vung nho");
@@ -70,30 +75,32 @@ void sendFile(int sock, const char* filePath, size_t buffer_size) {
 	//ham strrchr(const char* str, int c)
 	//tim kiem su xuat hien cuoi cung cua ky tu c (unsigned char) trong str
 	const char *fileName = strrchr(filePath,'/');
-	if (fileName == NULL)
-		fileName = strrchr(filePath, '\\');
-	if (fileName == NULL)
-		fileName = filePath;
+	if (fileName == NULL) fileName = strrchr(filePath, '\\');
+	if (fileName == NULL) fileName = filePath;
 	else fileName++; //Bo qua ky tu \ hoac /
-	send(sock, fileName, strlen(fileName) + 1, 0); // gui ten file
 
-	char check[5] = {0};
-	size_t bytes_read = recv(sock, check, 4, 0);
-	if (strcmp(check, "SCSS") == 0) {//server co the luu duoc file
-		//gui kich thuoc file
-		fseek(fin, 0, SEEK_END);
-		bytes_read = ftell(fin);
-		fseek(fin, 0, SEEK_SET);
-		send(sock, (char*)&bytes_read, sizeof(bytes_read), 0);
-		
-		//gui noi dung file
-		while((bytes_read = fread(buffer, 1, buffer_size, fin)) > 0) {
-			send(sock, buffer, bytes_read, 0);
+	if (strlen(fileName) >= BUFFER_SIZE)
+		fprintf(stderr, "Ten file qua dai\n");
+	else {
+		send(sock, fileName, strlen(fileName) + 1, 0); // gui ten file
+
+		char check[5] = {0};
+		size_t bytes_read = recv(sock, check, 4, 0);
+		if (strcmp(check, "SCSS") == 0) {//server co the luu duoc file
+			//gui kich thuoc file
+			fseek(fin, 0, SEEK_END);
+			bytes_read = ftell(fin);
+			fseek(fin, 0, SEEK_SET);
+			send(sock, (char*)&bytes_read, sizeof(bytes_read), 0);
+
+			//gui noi dung file
+			while((bytes_read = fread(buffer, 1, buffer_size, fin)) > 0) {
+				send(sock, buffer, bytes_read, 0);
+			}
+			printf("Gui file %s thanh cong\n", fileName);
 		}
-		printf("Gui file %s thanh cong\n", fileName);
+		else fprintf(stderr, "Server khong tao duoc file\n");
 	}
-	else fprintf(stderr, "Server khong tao duoc file\n");
-
 	fclose(fin);
 	free(buffer);
 }
@@ -113,6 +120,8 @@ int main(int argc, char *argv[]) {
 	while(1) {
 		printf("Nhap lenh theo cu phap (SendText <message> | SendFile <file_path> <buffer_size> | exit): \n");
 		fgets(command, BUFFER_SIZE, stdin);
+		//fgets se chi truyen vao command BUFFER_SIZE - 1 ky tu
+		//va ky tu cuoi cung se tu dong duoc gan '\0'
 		size_t len = strlen(command);
 		if (len > 0 && command[len - 1] == '\n')
 			command[len - 1] = '\0';

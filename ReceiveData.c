@@ -17,12 +17,14 @@ int directoryExists(const char* path) {
 int main(int argc, char *argv[]) {
 	if ((argc < 3) || (strcmp(argv[1], "-out") != 0)) {// sai cu phap
 		fprintf(stderr,"Su dung cu phap: ReceiveData -out <thuMuc_output>\n");
-		system("pause");
 		exit(1);
 	}
     
 	const char *storing_dir = argv[2];
-
+	if (strlen(storing_dir) >= MAX_PATH_LENGTH) {
+		fprintf(stderr, "Duong dan thu muc luu tru qua dai\n");
+		exit(1);
+	}
 	if(!directoryExists(storing_dir)) {
 		fprintf(stderr, "Thu muc %s khong ton tai\n", storing_dir);
 		exit(1);
@@ -89,7 +91,7 @@ int main(int argc, char *argv[]) {
 		perror("Ket noi that bai");
 		exit(1);
 	}
-	printf("Server: nhan duoc ket noi tu %s o port %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+	printf("Server: nhan duoc ket noi o port %d\n", ntohs(cliAddr.sin_port));
 
 	while(1){
 		char check[5] = {0};//De nhan chuoi TEXT/FILE tu client neu client muon gui file
@@ -107,32 +109,37 @@ int main(int argc, char *argv[]) {
 				else {
 					buffer[len_input] = '\0';
 					
-					char filePath[256];
-					snprintf(filePath, sizeof(filePath), "%s/%s", storing_dir, buffer);
-
-					FILE *outfile = fopen(filePath, "wb");
-					if (outfile == NULL) {
-						perror("Loi mo file");
+					char filePath[MAX_PATH_LENGTH];
+					int pathLenValid = snprintf(filePath, sizeof(filePath), "%s/%s", storing_dir, buffer);
+					if (pathLenValid < 0 || pathLenValid >= sizeof(filePath)) {
+						fprintf(stderr, "Duong dan luu file qua dai");
 						send(newsockfd, "FAIL", 4, 0);
 					}
 					else {
-						send(newsockfd, "SCSS", 4, 0);
-
-						size_t fileSize;
-						len_input = recv(newsockfd, (char*)&fileSize, sizeof(fileSize), 0);
-						if (len_input <= 0)
-							perror("Nhan kich thuoc file that bai");
-						else {
-							size_t total_bytes_received = 0;
-							while(total_bytes_received < fileSize && (len_input = recv(newsockfd, buffer, BUFFER_SIZE, 0)) > 0) {
-								fwrite(buffer, 1, len_input, outfile);
-								total_bytes_received += len_input;
-							}
-							if(total_bytes_received == fileSize)
-								printf("Da nhan file tu %s port %d va luu vao %s\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port), filePath);
-							else printf("Chua nhan het file %s tu %s, %d", buffer, inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+						FILE *outfile = fopen(filePath, "wb");
+						if (outfile == NULL) {
+							perror("Loi mo file");
+							send(newsockfd, "FAIL", 4, 0);
 						}
-						fclose(outfile);
+						else {
+							send(newsockfd, "SCSS", 4, 0);
+
+							size_t fileSize;
+							len_input = recv(newsockfd, (char*)&fileSize, sizeof(fileSize), 0);
+							if (len_input <= 0)
+								perror("Nhan kich thuoc file that bai");
+							else {
+								size_t total_bytes_received = 0;
+								while(total_bytes_received < fileSize && (len_input = recv(newsockfd, buffer, BUFFER_SIZE, 0)) > 0) {
+									fwrite(buffer, 1, len_input, outfile);
+									total_bytes_received += len_input;
+								}
+								if(total_bytes_received == fileSize)
+									printf("Da nhan file o port %d va luu vao %s\n", ntohs(cliAddr.sin_port), filePath);
+								else printf("Chua nhan het file %s o port %d", buffer, ntohs(cliAddr.sin_port));
+							}
+							fclose(outfile);
+						}
 					}
 				}
 			} else if (strcmp(check, "TEXT") == 0) {
@@ -140,13 +147,13 @@ int main(int argc, char *argv[]) {
 				len_input = recv(newsockfd, message, BUFFER_SIZE - 1, 0);
 				if (len_input > 0) {
 					message[len_input] = '\0';
-					printf("Tin nhan tu %s, port %d: %s\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port), message);
+					printf("Tin nhan o port %d: %s\n", ntohs(cliAddr.sin_port), message);
 				}
 			} else if (strcmp(check, "EXIT") == 0) {
-				printf("Nhan duoc thong bao ngat ket noi tu %s, %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+				printf("Nhan duoc thong bao ngat ket noi o port %d\n", ntohs(cliAddr.sin_port));
 				break;
 			}
-			else printf("Lenh khong hop le tu %s, %d\n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port));
+			else printf("Lenh khong hop le o port %d\n", ntohs(cliAddr.sin_port));
 		} else {
 			perror("Ket noi tu client bi loi hoac da dong ket noi\n");
 			break;
