@@ -48,6 +48,11 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
+	if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&waitingTime, sizeof(waitingTime)) < 0)
+		perror("Loi thiet lap thoi gian cho cua server");
+	if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (const char*)&waitingTime, sizeof(waitingTime)) < 0)
+		perror("Loi thiet lap thoi gian gui cua server");
+
 	//cau hinh dia chi truoc khi gan vao socket cua server
 	addr.sin_family = AF_INET; // su dung dang dia chi IPv4
 	addr.sin_addr.s_addr = INADDR_ANY; // INADDR_ANY = inet_addr("<IP_addr cua may chu>")
@@ -70,7 +75,6 @@ int main(int argc, char *argv[]) {
 	// ta thiet lap hang doi chi chua toi da 5 ket noi
 	if ((listen(sockfd, 5)) != 0) {
 		printf("Loi socket server listening\n");
-		system("pause");
 		#ifdef _WIN32
 			closesocket(sockfd);
 			WSACleanup();
@@ -92,6 +96,11 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 	printf("Server: nhan duoc ket noi o port %d\n", ntohs(cliAddr.sin_port));
+
+	if (setsockopt(newsockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&waitingTime, sizeof(waitingTime)) < 0)
+		fprintf(stderr, "Loi thiet lap thoi gian cho cua client o port %d\n", ntohs(cliAddr.sin_port));
+	if (setsockopt(newsockfd, SOL_SOCKET, SO_SNDTIMEO, (const char*)&waitingTime, sizeof(waitingTime)) < 0)
+		fprintf(stderr, "Loi thiet lap thoi gian gui cua client o port %d\n", ntohs(cliAddr.sin_port));
 
 	while(1){
 		char check[5] = {0};//De nhan chuoi TEXT/FILE tu client neu client muon gui file

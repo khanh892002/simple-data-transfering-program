@@ -6,7 +6,6 @@ int connect2Serv(const char* serv_ip) {
 		WSADATA wsaData;
 		if(WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
 			perror("WSAStartup failed");
-			system("pause");
 			return -1;
 		}
 	#endif
@@ -15,9 +14,13 @@ int connect2Serv(const char* serv_ip) {
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock < 0) {
 		perror("Loi tao socket");
-		system("pause");
 		return -1;
 	}
+
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&waitingTime, sizeof(waitingTime)) < 0)
+		perror("Loi thiet lap thoi gian cho cua ket noi");
+	if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&waitingTime, sizeof(waitingTime)) < 0)
+		perror("Loi thiet lap thoi gian gui cua ket noi");
 
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(PORT);
@@ -31,7 +34,6 @@ int connect2Serv(const char* serv_ip) {
 		#else
 			close(sock);
 		#endif
-		system("pause");
 		return -1;
 	}
 
@@ -44,7 +46,6 @@ int connect2Serv(const char* serv_ip) {
 		#else
 			close(sock);
 		#endif
-		system("pause");
 		return -1;
 	}
 
@@ -91,6 +92,7 @@ void sendFile(int sock, const char* filePath, size_t buffer_size) {
 			fseek(fin, 0, SEEK_END);
 			bytes_read = ftell(fin);
 			fseek(fin, 0, SEEK_SET);
+			//kieu du lieu size_t dam bao luu duoc kich thuoc file len den hang GB
 			send(sock, (char*)&bytes_read, sizeof(bytes_read), 0);
 
 			//gui noi dung file
@@ -105,10 +107,19 @@ void sendFile(int sock, const char* filePath, size_t buffer_size) {
 	free(buffer);
 }
 
+int checkBufferSize(const char *buffer_str) {
+	char *theRest;
+	long value = strtol(buffer_str, &theRest, 10);
+	//ham strtol tra ve ket qua la so nguyen long dau tien trong chuoi buffer_str
+	//con tro theRest se tro den phan chuoi con lai phia sau so nguyen duoc lay ra
+	//tham so cuoi cung la base can lay, 10 la thap phan
+	return (*theRest == '\0' && value > 0);
+	//neu buffer_str chi co so nguyen thi theRest tro den gia tri '\0'
+} 
+
 int main(int argc, char *argv[]) {
 	if (argc < 2) {//sai cu phap
 	   fprintf(stderr,"Su dung cu phap: SendData <destination address>\n");
-	   system("pause");
 	   exit(1);
 	}
 
@@ -141,11 +152,11 @@ int main(int argc, char *argv[]) {
 		else if (strcmp(cmd, "SendFile") == 0) {
 			char *filePath = strtok(NULL, " ");
 			char *buffer_size_str = strtok(NULL, " ");
-			if (filePath != NULL && buffer_size_str != NULL) {
-				size_t buffer_size = strtoul(buffer_size_str, NULL, 0);
+			if (filePath != NULL && buffer_size_str != NULL && checkBufferSize(buffer_size_str)) {
+				size_t buffer_size = (size_t)atoi(buffer_size_str);
 				sendFile(sock, filePath, buffer_size);
 			} else
-				fprintf(stderr, "Can nhap thong tin duong dan va buffer size\n");
+				fprintf(stderr, "Can nhap dung cu phap: SendFile <file_path> <buffer_size nguyen duong>\n");
 		}
 		else if (strcmp(cmd, "exit") == 0) {
 			send(sock, "EXIT", 4, 0);
