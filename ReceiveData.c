@@ -18,7 +18,7 @@ typedef struct {
 } client_info;//De xu ly xuat thong tin dia chi cua client ra man hinh
 
 //Nhung thanh phan xu ly doi pho hinh thuc tan cong request flooding
-#define MAX_CONNS_PER_IP 10 //So luong ket noi toi da tu mot IP
+#define MAX_CONNS_PER_IP 3 //So luong ket noi toi da tu mot IP
 #define MIN_WAITING_TIME_OF_AN_IP 45
 //Khoang thoi gian toi thieu de mot dia chi IP duoc xem nhu la mot ket noi moi den server
 #define MAX_IPS_COUNT 1000//So luong dia chi IP toi da trong mang
@@ -38,7 +38,7 @@ connection_info* find_or_create_new_conn(const char* checkedIPAddr) {
 	if (ip_count < MAX_IPS_COUNT) {
 		connection_info* newIP = (connection_info*) malloc(sizeof(connection_info));
 		strncpy(newIP->ipAddr, checkedIPAddr, INET6_ADDRSTRLEN);
-		newIP->connectionCount = 0;
+		newIP->connectionCount = 1;
 		newIP->latestConnection = 0;
 		connsList[ip_count++] = newIP;
 		return newIP;
@@ -56,7 +56,7 @@ int acceptable_conn(const char* ipAddr) {
 	#else
 		pthread_mutex_lock(&mutex);
 	#endif
-	printf("Duoc\n");
+
 	connection_info* checkedConn = find_or_create_new_conn(ipAddr);
 	if (checkedConn == NULL)
 		printf("So dia chi IP trong danh sach dat den toi da\nHay khoi dong lai server\n");
@@ -82,82 +82,125 @@ int acceptable_conn(const char* ipAddr) {
 	return result;
 }
 
-//void *handleClient(void* arg) {
+void handleFILE(int clientSock, char* clientIP, int clientPort) {
+	char buffer[BUFFER_SIZE] = {0};
+	//nhan ten file
+	size_t len_input = recv(clientSock, buffer, BUFFER_SIZE - 1,0);
+	if (len_input <= 0)
+		perror("Khong nhan duoc ten file");
+	else {
+		buffer[len_input] = '\0';
+		
+		char filePath[MAX_PATH_LENGTH];
+		int pathLenValid = snprintf(filePath, sizeof(filePath), "%s/%s", storing_dir, buffer);
+		if (pathLenValid < 0 || pathLenValid >= sizeof(filePath)) {
+			fprintf(stderr, "Duong dan luu file qua dai");
+			send(clientSock, "FAIL", 4, 0);
+		}
+		else {
+			FILE *outfile = fopen(filePath, "wb");
+			if (outfile == NULL) {
+				perror("Loi mo file");
+				send(clientSock, "FAIL", 4, 0);
+			}
+			else {
+				send(clientSock, "SCSS", 4, 0);
+				size_t fileSize;
+				len_input = recv(clientSock, (char*)&fileSize, sizeof(fileSize), 0);
+				if (len_input <= 0)
+					perror("Nhan kich thuoc file that bai");
+				else {
+					size_t total_bytes_received = 0;
+					while(total_bytes_received < fileSize && (len_input = recv(clientSock, buffer, BUFFER_SIZE, 0)) > 0) {
+						fwrite(buffer, 1, len_input, outfile);
+						total_bytes_received += len_input;
+					}
+					if(total_bytes_received == fileSize)
+						printf("Da nhan file tu %s o port %d va luu vao %s\n", clientIP, clientPort, filePath);
+					else printf("Chua nhan het file %s tu %s o port %d", buffer, clientIP, clientPort);
+				}
+				fclose(outfile);
+			}
+		}
+	}
+}
+
+void handleTEXT(int clientSock, char* clientIP, int clientPort) {
+	char message[BUFFER_SIZE] = {0};
+	size_t len_input = recv(clientSock, message, BUFFER_SIZE - 1, 0);
+	if (len_input > 0) {
+		message[len_input] = '\0';
+		printf("Tin nhan tu %s port %d: %s\n", clientIP, clientPort, message);
+	}
+}
+
+#ifdef _WIN32
 DWORD WINAPI handleClient(LPVOID arg) {
 	client_info *cliInfo = (client_info *)arg;
 	int clientSock = cliInfo->client_sock;
 	char *clientIP = cliInfo->client_ip;
 	int clientPort = cliInfo->client_port;
-	free(cliInfo);
+	free(arg);
 
-	char check[5] = {0};//De nhan chuoi TEXT/FILE tu client neu client muon gui file
-	size_t len_input = recv(clientSock, check, 4, 0);
-	//ham recv lay thong tin tu newsockfd (client),
-	//vao buffer <size - 1> byte ky tu
-	if (len_input > 0) {
-		check[len_input] = '\0';
-		if (strncmp(check, "FILE", 4) == 0) {
-			char buffer[BUFFER_SIZE] = {0};
-			//nhan ten file
-			len_input = recv(clientSock, buffer, BUFFER_SIZE - 1,0);
-			if (len_input <= 0)
-				perror("Khong nhan duoc ten file");
-			else {
-				buffer[len_input] = '\0';
-				
-				char filePath[MAX_PATH_LENGTH];
-				int pathLenValid = snprintf(filePath, sizeof(filePath), "%s/%s", storing_dir, buffer);
-				if (pathLenValid < 0 || pathLenValid >= sizeof(filePath)) {
-					fprintf(stderr, "Duong dan luu file qua dai");
-					send(clientSock, "FAIL", 4, 0);
-				}
-				else {
-					FILE *outfile = fopen(filePath, "wb");
-					if (outfile == NULL) {
-						perror("Loi mo file");
-						send(clientSock, "FAIL", 4, 0);
-					}
-					else {
-						send(clientSock, "SCSS", 4, 0);
-						size_t fileSize;
-						len_input = recv(clientSock, (char*)&fileSize, sizeof(fileSize), 0);
-						if (len_input <= 0)
-							perror("Nhan kich thuoc file that bai");
-						else {
-							size_t total_bytes_received = 0;
-							while(total_bytes_received < fileSize && (len_input = recv(clientSock, buffer, BUFFER_SIZE, 0)) > 0) {
-								fwrite(buffer, 1, len_input, outfile);
-								total_bytes_received += len_input;
-							}
-							if(total_bytes_received == fileSize)
-								printf("Da nhan file tu %s o port %d va luu vao %s\n", clientIP, clientPort, filePath);
-							else printf("Chua nhan het file %s tu %s o port %d", buffer, clientIP, clientPort);
-						}
-						fclose(outfile);
-					}
-				}
+	char check[5] = {0};//De nhan chuoi TEXT/FILE/EXIT tu client neu client muon gui file
+	while(1) {
+		size_t len_input = recv(clientSock, check, 4, 0);
+		//ham recv lay thong tin tu newsockfd (client),
+		//vao buffer <size - 1> byte ky tu
+		if (len_input > 0) {
+			check[len_input] = '\0';
+			if (strncmp(check, "FILE", 4) == 0) handleFILE(clientSock, clientIP, clientPort);
+			else if (strncmp(check, "TEXT", 4) == 0) handleTEXT(clientSock, clientIP, clientPort);
+			else if (strncmp(check, "EXIT", 4) == 0) {
+				printf("Nhan duoc thong bao ngat ket noi tu %s o port %d\n", clientIP, clientPort);
+				break;
 			}
-		} else if (strncmp(check, "TEXT", 4) == 0) {
-			char message[BUFFER_SIZE] = {0};
-			len_input = recv(clientSock, message, BUFFER_SIZE - 1, 0);
-			if (len_input > 0) {
-				message[len_input] = '\0';
-				printf("Tin nhan tu %s port %d: %s\n", clientIP, clientPort, message);
-			}
-		} else if (strncmp(check, "EXIT", 4) == 0)
-			printf("Nhan duoc thong bao ngat ket noi tu %s o port %d\n", clientIP, clientPort);
-		else printf("Lenh khong hop le tu %s o port %d\n", clientIP, clientPort);
-	} else
-		perror("Ket noi tu client bi loi hoac da dong ket noi\n");
-	
-	#ifdef _WIN32
-		closesocket(clientSock);
-	#else
-		close(clientSock);
-	#endif
+			else printf("Lenh khong hop le tu %s o port %d\n", clientIP, clientPort);
+		} else {
+			perror("Ket noi tu client bi loi hoac da dong ket noi\n");
+			break;
+		}
+	}
+	closesocket(clientSock);
+
+	connection_info *conn = find_or_create_new_conn(clientIP);
+	conn->connectionCount--;
 
 	return 0;
 }
+#else
+void* handleClient(void* arg) {
+	client_info *cliInfo = (client_info *)arg;
+	int clientSock = cliInfo->client_sock;
+	char *clientIP = cliInfo->client_ip;
+	int clientPort = cliInfo->client_port;
+	free(arg);
+
+	char check[5] = {0};
+	while(1) {
+		size_t len_input = recv(clientSock, check, 4, 0);
+		if (len_input > 0) {
+			check[len_input] = '\0';
+			if (strncmp(check, "FILE", 4) == 0) handleFILE(clientSock, clientIP, clientPort);
+			else if (strncmp(check, "TEXT", 4) == 0) handleTEXT(clientSock, clientIP, clientPort);
+			else if (strncmp(check, "EXIT", 4) == 0) {
+				printf("Nhan duoc thong bao ngat ket noi tu %s o port %d\n", clientIP, clientPort);
+				break;
+			}
+			else printf("Lenh khong hop le tu %s o port %d\n", clientIP, clientPort);
+		} else {
+			perror("Ket noi tu client bi loi hoac da dong ket noi\n");
+			break;
+		}
+	}
+	close(clientSock);
+	
+	connection_info *conn = find_or_create_new_conn(clientIP);
+	conn->connectionCount--;
+	
+	return 0;
+}
+#endif
 
 int directoryExists(const char* path) {
 	#ifdef _WIN32
@@ -246,7 +289,7 @@ int main(int argc, char *argv[]) {
 	else
 		printf("Server listening\n");
 
-	while(1){
+	while(1) {
 		struct sockaddr_in cliAddr;
 		socklen_t addrlen = sizeof(cliAddr);	
 		//ham accept se luu lai thong tin dia chi cua client
@@ -264,7 +307,6 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "Loi thiet lap thoi gian gui cua client o port %d\n", ntohs(cliAddr.sin_port));
 		// Kiem tra lan cuoi ket noi cua ip
 
-
 		client_info *clientInfo = malloc(sizeof(client_info));
 		if (!clientInfo) {
 			perror("Khong tao duoc bien luu tru thong tin client");
@@ -281,7 +323,7 @@ int main(int argc, char *argv[]) {
 		clientInfo->client_port = ntohs(cliAddr.sin_port);
 
 		if (!acceptable_conn(clientInfo->client_ip)) {
-			printf("Luong ket noi tu %s vuot qua gioi han\n",clientInfo->client_ip);
+			printf("Luong ket noi tu %s vuot qua gioi han\n", clientInfo->client_ip);
 			#ifdef _WIN32
 				closesocket(newsockfd);
 			#else
